@@ -1,0 +1,118 @@
+---
+title: "Practical Machine Learning Project"
+author: "G. Lucas"
+date: "May 24, 2015"
+output: html_document
+---
+
+##Overview
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+Six participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).  Data was captured from accelerometers on the belt, forearm, arm, and dumbbell of each participant.
+
+The goal of this project is to predict the manner in which they did the exercise.
+
+## Data Processing
+
+```{r comment=NA, message=FALSE}
+set.seed(333)
+library(caret)
+library(randomForest) 
+library(rpart) 
+library(rpart.plot) 
+
+setwd("~/Documents/Personal/Data Science Specialization/Practical Machine Learning/project")
+
+train <- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!", ""))
+test <- read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!", ""))
+
+# Many columns are empty and therefore are dropped
+train <- train[,colSums(is.na(train)) == 0]
+test <- test[,colSums(is.na(test)) == 0]
+
+#Drop the first 7 columns because they're not needed for model building and prediction
+train <- train[,-c(1:7)]
+test <- test[,-c(1:7)]
+```
+
+## Data Exploration
+
+Size of the training and test sets
+
+```{r cache=TRUE, comment=NA}
+dim(train)
+dim(test)
+```
+
+Explore the classe variable in the training set
+
+```{r cache=TRUE, comment=NA}
+summary(train$classe)
+plot(train$classe, col = "green", 
+     main = "Levels of the variable classe", 
+     xlab = "Levels", ylab = "Frequency")
+```
+
+##Model Development and Comparison
+Create a data partition of the training set for cross validation
+
+```{r cache=TRUE, comment=NA}
+
+samples <- createDataPartition(y = train$classe, p  = 0.75, list = FALSE)
+subTrain <- train[samples, ] 
+subTest <- train[-samples, ]
+dim(subTrain)
+dim(subTest)
+```
+
+Develop model using Recursive Partition
+
+```{r cache=TRUE, comment=NA}
+# Predict using Recursive Partition
+rpartModel <- rpart(classe ~ ., data = subTrain, method = "class")
+rpartPrediction<- predict(rpartModel, subTest, type = "class")
+
+# Decision Tree
+rpart.plot(rpartModel, main = "Decision Tree", extra = 101, under = TRUE)
+
+confusionMatrix(rpartPrediction, subTest$classe)
+rpartAccuracy <- round(as.numeric(
+        confusionMatrix(rpartPrediction, subTest$classe)$overall[[1]]) * 100, 
+        digits=2)
+```
+
+Accuracy using Recursive Partitioning is `r rpartAccuracy`%
+
+Develop model using Random Forest
+
+```{r cache=TRUE, comment=NA}
+# Predict using Random Forest
+rForestModel <- randomForest(classe ~. , data = subTrain, method="class")
+rForestPrediction <- predict(rForestModel, subTest, type = "class")
+
+# Test results on subTesting data set:
+confusionMatrix(rForestPrediction, subTest$classe)
+rfAccuracy <- round(as.numeric(
+        confusionMatrix(rForestPrediction, subTest$classe)$overall[[1]]) * 100, 
+        digits=2)
+```
+
+Random Forest accuracy is `r rfAccuracy`% which is much more accurate than 
+Recursive Partitioning.  Therefore, Random Forest will be used to forecast.
+
+##Create Final Prediction
+
+```{r cache=TRUE, comment=NA}
+
+predictfinal <- predict(rForestModel, test, type="class")
+predictfinal
+```
+
+Review the final results
+
+```{r cache=TRUE, comment=NA}
+summary(predictfinal)
+plot(predictfinal, col = "green", 
+     main = "Final Forecast", 
+     xlab = "Levels", ylab = "Frequency")
+```
